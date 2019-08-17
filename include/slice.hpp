@@ -22,7 +22,6 @@ public:
           std::shared_ptr<Storage<T, Device>> storage):
             dim_index_(dim_index), view_(view), storage_(storage)
     {
-        // view_.shape(dim_index_) = 1;
         view_.shape[dim_index] = 1;
         view_.offset[dim_index_] = index + view.offset[dim_index_];
     }
@@ -33,7 +32,6 @@ public:
           std::shared_ptr<Storage<T, Device>> storage):
             dim_index_(dim_index), view_(view), storage_(storage)
     {
-        // view_.shape(dim_index_) = index_range.second - index_range.first;
         view_.shape[dim_index] = index_range.second - index_range.first;
         view_.offset[dim_index_] = index_range.first;
     }
@@ -63,34 +61,5 @@ private:
     View view_;
     std::shared_ptr<Storage<T, Device>> storage_;
 };
-
-// template <typename Sliceable>
-// class SliceGenerator: public ranges::view_facade<SliceGenerator<Sliceable>, ranges::finite> {
-// public:
-//     friend ranges::range_access;
-
-//     using NumericType = typename Sliceable::NumericType;
-//     using Device = typename Sliceable::Device;
-
-//     SliceGenerator(): sliceable_(nullptr) {}
-
-//     explicit SliceGenerator(Sliceable &sliceable):
-//         sliceable_(&sliceable), index_(0) {}
-
-//     void next() {
-//         ++index_;
-//     }
-
-//     Slice<NumericType, Device> read() const {
-//         return (*sliceable_)[index_];
-//     }
-
-//     bool equal(ranges::default_sentinel_t) const {
-//         return index_ == sliceable_->shape(sliceable_->index());
-//     }
-// private:
-//     Sliceable *sliceable_;
-//     index_t index_;
-// };
 
 #endif

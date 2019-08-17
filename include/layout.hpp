@@ -10,10 +10,6 @@ struct Layout {
     Layout(Layout const &layout):
         shape(layout.shape), strides(layout.strides) {}
 
-    // make sure we don't call this anywhere
-    // Layout(extent const &shape, indices const &order):
-    //     shape(shape), strides(make_strides(shape, order)) {}
-
     Layout(extent const &shape, indices const &strides):
         shape(shape), strides(strides) {}
 
@@ -38,6 +34,8 @@ inline indices increasing_order(std::size_t num_dims) {
 }
 
 struct View: public Layout {
+    View() = default;
+
     View(extent const &shape,
          indices const &offset,
          indices const &order,
@@ -81,19 +79,23 @@ struct View: public Layout {
     indices order;
 };
 
+inline std::size_t num_dims(Layout const &layout) { return layout.size(); }
+inline std::size_t num_dims(View const &view) { return view.size(); }
+
+
 template <typename LayoutType, typename ContainerType>
-offset_t calculate_offset(const LayoutType &layout, ContainerType const &index) {
+offset_t calculate_offset(const LayoutType &layout,
+                          ContainerType const &index)
+{
     offset_t offset = 0;
 
-    for (std::size_t d = 0; d < index.size(); d++) {
+    for (std::size_t d = 0; d < num_dims(layout); d++) {
         offset += layout.get_offset(d, index[d]);
     }
 
     return offset;
 }
 
-// Q: keep this? provide a calculate_offset that ignores singleton and use that instead?
-// or have both?
 // TODO: provide check that all but one dimension is a singleton
 template <typename LayoutType>
 offset_t calculate_offset(const LayoutType &layout, index_t index) {

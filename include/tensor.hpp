@@ -26,7 +26,7 @@ enum class TensorOrder {
     ColumnMajor
 };
 
-indices make_order(std::size_t dims, TensorOrder order) {
+inline indices make_order(std::size_t dims, TensorOrder order) {
     if (order == TensorOrder::RowMajor) {
         return make_row_major_order(dims);
     } else {
@@ -113,31 +113,58 @@ Tensor<T, Device> tensor(std::initializer_list<std::initializer_list<std::initia
     return result;
 }
 
+/**
+ * \class Tensor tensor.hpp include/tensor.hpp
+ * \brief The Tensor class holds a pointer to data held in storage and a view of that data.
+ * \tparam T The type of the Tensor (e.g. ``int``, ``float``, ``double``, etc.)
+ * \tparam D The device the data is stored on (e.g. `CPU`, `GPU`, etc.)
+ */
 template <typename T, typename D=CPU>
 class Tensor {
 public:
     using NumericType = T;
     using Device = D;
 
-    Tensor() = default;
-
+    /**
+     * \brief Constructs a Tensor with given a shape and order
+     * \param shape The extent of the Tensor in each dimension
+     * \param order Either TensorOrder::RowMajor or TensorOrder::ColumnMajor
+     */
     Tensor(extent shape, TensorOrder order):
         view_({shape, make_strides(shape, make_order(shape.size(), order))}),
         storage_(std::make_shared<Storage<T, Device>>(view_.num_elements())),
         order_(order) {}
 
+    /**
+     * \brief Constructs a Tensor with a given shape
+     * \param shape The extent of the Tensor in each dimension
+     */
     explicit Tensor(extent const &shape):
         Tensor(shape, TensorOrder::RowMajor) {}
 
+    /**
+     * \brief Constructs a Tensor with the given `storage` and `view`
+     * \param storage The storage containing the Tensor's data
+     * \param view The view of the storage
+     */
     Tensor(std::shared_ptr<Storage<T, Device>> storage, const View &view):
         view_(view), storage_(storage),
         order_(TensorOrder::RowMajor) {}
 
+    /**
+     * \brief Constructs a Tensor from a Slice
+     * \param slice The slice of another Tensor
+     */
     Tensor(Slice<T, Device> const &slice):
         view_(slice.view()),
         storage_(slice.storage_ptr()),
         order_(TensorOrder::RowMajor) {}
 
+    /**
+     * \brief Index operator
+     * \param cindices A sequence of index's used to calculate an offset
+     * \return The value in the tensor for the given index
+     */
     template <typename... Args>
     T &operator ()(Args... cindices) {
         auto array_indices = tuple_to_array<index_t>(std::tuple<Args...>(cindices...));
@@ -145,13 +172,36 @@ public:
         return (*storage_)[pos];
     }
 
-    T &operator ()(const indices &index) {
+    /**
+     * \brief Index operator
+     * \param cindices A sequence of index's used to calculate an offset
+     * \return The value in the tensor for the given index
+     */
+    template <typename... Args>
+    T &operator ()(Args... cindices) const {
+        auto array_indices = tuple_to_array<index_t>(std::tuple<Args...>(cindices...));
+        auto pos = calculate_offset(view_, array_indices);
+        return (*storage_)[pos];
+    }
+
+
+    /**
+     * \brief Index operator
+     * \param cindices A sequence of index's used to calculate an offset
+     * \return The value in the tensor for the given index
+     */
+    T &operator ()(indices const &index) {
         auto offset = calculate_offset(view_, index);
         return (*storage_)[offset];
     }
 
 
-    T const &operator ()(const indices &index) const {
+    /**
+     * \brief Index operator
+     * \param cindices A sequence of index's used to calculate an offset
+     * \return The value in the tensor for the given index
+     */
+    T const &operator ()(indices const &index) const {
         auto offset = calculate_offset(view_, index);
         return (*storage_)[offset];
     }
@@ -161,22 +211,55 @@ public:
         return index_generator(view_);
     }
 
+    /**
+     * \brief Slice operator
+     * \param index Index to set first dimension of Slice to
+     * \return A Slice with the same storage as this Tensor
+     */
     Slice<T, Device> operator [](index_t index) const {
         return Slice(0, index, view_, storage_);
     }
 
+    /**
+     * \brief Slice operator
+     * \param index_index Range to set first dimension of Slice to
+     * \return A Slice with the same storage as this Tensor
+     */
     Slice<T, Device> operator [](index_range_t index_range) const {
         return Slice(0, index_range, view_, storage_);
     }
 
+    /**
+     * \brief Returns the Tensor's view
+     * \return View
+     */
     const View &view() const { return view_; }
+
+    /**
+     * \brief Returns the Tensor's view
+     * \return View
+     */
     View &view() { return view_; }
 
+    /**
+     * \brief Creates a new Tensor using the same storage but
+     *        a new view
+     * \return Tensor
+     */
     Tensor<T, Device> view(const View &new_view) const {
         return Tensor<T, Device>{storage_, new_view};
     }
 
+    /**
+     * \brief Returns shape of tensor (from view)
+     * \return extent
+     */
     extent const &shape() const { return view_.shape; }
+
+    /**
+     * \brief Returns shape of tensor (from view)
+     * \return extent
+     */
     index_t shape(index_t dim) const { return view_.shape[dim]; }
 
     std::size_t num_dims() const { return view_.shape.size(); }
@@ -191,12 +274,13 @@ private:
 };
 
 template <typename T, typename Device>
-bool operator ==(Tensor<T, Device> const &lhs, Tensor<T, Device> const &rhs) {
-    for (auto const &index : lhs.indices()) {
-        if (lhs(index) != rhs(index)) return false;
-    }
+index_t num_dims(Tensor<T, Device> const &tensor) {
+    return tensor.shape().size();
+}
 
-    return true;
+template <typename T, typename Device>
+index_t num_elements(Tensor<T, Device> const &tensor) {
+    return num_elements(tensor.shape());
 }
 
 #endif

@@ -19,6 +19,7 @@ add_executable(TensorTests
     test/test_indexing.cpp
     test/test_storage.cpp
     test/test_tensor.cpp
+    test/test_tensor_ops.cpp
 )
 target_link_libraries(TensorTests ${GTEST_LIBRARIES} pthread fmt::fmt)
 set_target_properties(TensorTests PROPERTIES CXX_STANDARD 17)

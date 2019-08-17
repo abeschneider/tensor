@@ -5,15 +5,11 @@
 
 #include "types.hpp"
 
-// maybe make a shape range that uses order?
 class ordered_shape_view: public ranges::view_facade<ordered_shape_view, ranges::finite> {
 public:
     ordered_shape_view() = default;
     ordered_shape_view(extent const &shape, indices const &order):
         shape_(&shape), order_(&order), index_(0) {}
-
-    // ordered_shape_view(extent shape, indices order):
-    //     shape_(shape), order_(order), index_(0) {}
 
     void next() { ++index_; }
     const index_t &read() const { return (*shape_)[(*order_)[index_]]; }
@@ -23,14 +19,12 @@ public:
         return index_ >= shape_->size();
     }
 private:
-    // ranges::ref_view<extent> shape_;
-    // ranges::ref_view<indices> order_;
     extent const *shape_;
     indices const *order_;
     index_t index_;
 };
 
-// TODO: right now not really a view since we own the memory.. make pointers?
+
 class stride_generator: public ranges::view_facade<stride_generator, ranges::finite> {
 public:
     friend ranges::range_access;
