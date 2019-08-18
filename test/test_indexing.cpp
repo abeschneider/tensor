@@ -57,7 +57,6 @@ TEST(IndexTestSuite, TestOrderedViewColMajor) {
 TEST(IndexTestSuite, TestStridesRowMajor) {
     extent shape{2, 3, 4};
     indices order = make_row_major_order(shape.size());
-    fmt::print("row_major: {}\n", order);
     indices strides = make_strides(shape, order);
 
     indices expected = {12, 4, 1};

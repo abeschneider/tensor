@@ -11,6 +11,154 @@
 #define ASSERT_TENSORS_EQ(expected, result) \
     ASSERT_TRUE(equals(expected, result))
 
+template <typename T, typename Device>
+void fill_tensor(Tensor<T, Device> &tensor) {
+    index_t i = 0;
+    for (auto &index : index_generator(tensor.shape())) {
+        tensor(index) = i++;
+    }
+}
+
+
+TEST(TensorTestSuite, TestReshape) {
+    auto t = Tensor<int>({2, 3, 4});
+    fill_tensor(t);
+
+    {
+        auto t2 = reshape(t, {24});
+
+        auto expected = tensor({ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11,
+                                12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23});
+
+        ASSERT_EQ((std::vector{24UL}), t2.shape());
+        ASSERT_EQ((std::vector{1UL}), t2.view().strides);
+        ASSERT_TENSORS_EQ(expected, t2);
+    }
+
+    {
+        auto t2 = reshape(t, {6, 4});
+
+        auto expected = tensor({
+            {  0,   1,   2,   3},
+            {  4,   5,   6,   7},
+            {  8,   9,  10,  11},
+            { 12,  13,  14,  15},
+            { 16,  17,  18,  19},
+            { 20,  21,  22,  23}
+        });
+
+        ASSERT_EQ((std::vector{6UL, 4UL}), t2.shape());
+        ASSERT_EQ((std::vector{4UL, 1UL}), t2.view().strides);
+        ASSERT_TENSORS_EQ(expected, t2);
+    }
+
+    {
+        auto t2 = reshape(t, {4, 6});
+
+        auto expected = tensor({
+            {  0,   1,   2,   3,   4,   5},
+            {  6,   7,   8,   9,  10,  11},
+            { 12,  13,  14,  15,  16,  17},
+            { 18,  19,  20,  21,  22,  23}
+        });
+
+
+        ASSERT_EQ((std::vector{4UL, 6UL}), t2.shape());
+        ASSERT_EQ((std::vector{6UL, 1UL}), t2.view().strides);
+        ASSERT_TENSORS_EQ(expected, t2);
+    }
+
+    {
+        EXPECT_THROW(reshape(t, {2, 3}), MismatchedNumberOfElements);
+    }
+}
+
+TEST(TensorTestSuite, TestBroadcast1) {
+    {
+        auto t = tensor({1, 2, 3, 4});
+        auto t2 = broadcast_to(t, {3, 4});
+
+        auto expected = tensor({
+            { 1, 2, 3, 4},
+            { 1, 2, 3, 4},
+            { 1, 2, 3, 4}
+        });
+
+        ASSERT_EQ((extent{3, 4}), t2.shape());
+        ASSERT_EQ((indices{0, 1}), t2.view().strides);
+        ASSERT_TENSORS_EQ(expected, t2);
+    }
+
+    {
+        auto t = tensor({1, 2, 3, 4});
+        EXPECT_THROW(broadcast_to(t, {4, 3}), CannotBroadcast);
+    }
+
+    {
+        auto t = tensor({3});
+        auto t2 = broadcast_to(t, {3, 3});
+
+        auto expected = tensor({
+            {3, 3, 3},
+            {3, 3, 3},
+            {3, 3, 3}
+        });
+
+
+        ASSERT_EQ((extent{3, 3}), t2.shape());
+        ASSERT_EQ((indices{0, 0}), t2.view().strides);
+        ASSERT_TENSORS_EQ(expected, t2);
+     }
+}
+
+TEST(TensorTestSuite, TestBroadcast2) {
+    auto t1 = tensor({
+        {1, 1, 1, 1, 1},
+        {2, 2, 2, 2, 2},
+        {3, 3, 3, 3, 3}
+    });
+
+    auto t2 = tensor({4, 4, 4, 4, 4});
+
+    auto [t3, t4] = broadcast(t1, t2);
+
+    auto expected = tensor({
+        {5, 5, 5, 5, 5},
+        {6, 6, 6, 6, 6},
+        {7, 7, 7, 7, 7}
+    });
+
+    auto result = t3 + t4;
+
+    ASSERT_EQ((extent{3, 5}), t3.shape());
+    ASSERT_EQ((extent{3, 5}), t4.shape());
+    ASSERT_TENSORS_EQ(expected, result);
+}
+
+TEST(TensorTestSuite, TestBroadcast3) {
+    auto t1 = tensor({
+        {1, 1, 1, 1, 1},
+        {2, 2, 2, 2, 2},
+        {3, 3, 3, 3, 3}
+    });
+
+    auto t2 = tensor({{4, 4, 4, 4, 4}});
+
+    auto [t3, t4] = broadcast(t1, t2);
+
+    auto expected = tensor({
+        {5, 5, 5, 5, 5},
+        {6, 6, 6, 6, 6},
+        {7, 7, 7, 7, 7}
+    });
+
+    auto result = t3 + t4;
+
+    ASSERT_EQ((extent{3, 5}), t3.shape());
+    ASSERT_EQ((extent{3, 5}), t4.shape());
+    ASSERT_TENSORS_EQ(expected, result);
+}
+
 TEST(TensorTestSuite, TestAddTensors1) {
     auto lhs = tensor({1, 2, 3});
     auto rhs = tensor({1, 1, 1});

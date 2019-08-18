@@ -35,6 +35,20 @@ void fill(Tensor<T, Device> &t, T const &value) {
     }
 }
 
+template <typename T, typename Device=CPU>
+Tensor<T, Device> zeros(extent const &shape) {
+    Tensor<T, Device> result(shape);
+    fill(result, 0);
+    return result;
+}
+
+template <typename T, typename Device=CPU>
+Tensor<T, Device> ones(extent const &shape) {
+    Tensor<T, Device> result(shape);
+    fill(result, 0);
+    return result;
+}
+
 /**
  * \brief Re-orders dimensions of Tensor
  * \param tensor The Tensor to re-order
@@ -76,10 +90,8 @@ Tensor<T, Device> reshape(Tensor<T, Device> const &tensor, extent const &shape) 
 }
 
 template <typename T, typename Device>
-bool is_broadcastable_to(Tensor<T, Device> const &tensor,
-                         extent const &shape)
-{
-    if (shape.size() <= tensor.shape().size()) return false;
+bool is_broadcastable_to(Tensor<T, Device> const &tensor, extent const &shape) {
+    if (shape.size() < tensor.shape().size()) return false;
 
     auto shape_it = shape.rbegin();
     auto tensor_shape_it = tensor.shape().rbegin();
@@ -90,13 +102,10 @@ bool is_broadcastable_to(Tensor<T, Device> const &tensor,
     return true;
 }
 
-// TODO: get rid of optional, and use invalid Tensor
+namespace detail {
+
 template <typename T, typename Device>
 Tensor<T, Device> broadcast_to(Tensor<T, Device> const &tensor, extent const &shape) {
-    if (!is_broadcastable_to(tensor, shape)) {
-        throw CannotBroadcast(tensor.shape(), shape);
-    }
-
     extent strides;
     auto offset = make_offset(shape.size());
     auto order = make_row_major_order(shape.size());
@@ -110,6 +119,36 @@ Tensor<T, Device> broadcast_to(Tensor<T, Device> const &tensor, extent const &sh
     }
 
     return tensor.view({shape, offset, order, strides});
+}
+
+} // namespace detail
+
+template <typename T, typename Device>
+Tensor<T, Device> broadcast_to(Tensor<T, Device> const &tensor, extent const &shape) {
+    if (tensor.shape() == shape) return tensor;
+
+    if (!is_broadcastable_to(tensor, shape)) {
+        throw CannotBroadcast(tensor.shape(), shape);
+    }
+
+    return detail::broadcast_to(tensor, shape);
+}
+
+template <typename T, typename Device>
+std::pair<Tensor<T, Device>, Tensor<T, Device>>
+broadcast(Tensor<T, Device> const &t1, Tensor<T, Device> const &t2) {
+    if (t1.shape() == t2.shape()) return std::make_pair(t1, t2);
+
+    bool t1_to_t2 = is_broadcastable_to(t1, t2.shape());
+    bool t2_to_t1 = is_broadcastable_to(t2, t1.shape());
+
+    if (!t1_to_t2 && !t2_to_t1) {
+        throw CannotBroadcast(t1.shape(), t2.shape());
+    }
+
+    auto result1 = t1_to_t2 ? detail::broadcast_to(t1, t2.shape()) : t1;
+    auto result2 = t2_to_t1 ? detail::broadcast_to(t2, t1.shape()) : t2;
+    return std::make_pair(result1, result2);
 }
 
 template <typename RT, typename T, typename Device, typename F>
