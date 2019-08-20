@@ -106,15 +106,16 @@ namespace detail {
 
 template <typename T, typename Device>
 Tensor<T, Device> broadcast_to(Tensor<T, Device> const &tensor, extent const &shape) {
-    extent strides;
+    extent strides(shape.size(), 0);
     auto offset = make_offset(shape.size());
     auto order = make_row_major_order(shape.size());
 
-    for (int i = shape.size()-1; i >= 0; i--) {
-        if (i < tensor.shape().size() && tensor.shape()[i] > 1) {
-            strides.push_back(tensor.view().strides[i]);
+    std::size_t diff = shape.size() - tensor.shape().size();
+    for (index_t i = 0; i < tensor.shape().size(); i++) {
+        if (tensor.shape()[i] > 1) {
+            strides[diff+i] = tensor.view().strides[i];
         } else {
-            strides.push_back(0);
+            strides[diff+i] = 0;
         }
     }
 
@@ -156,8 +157,10 @@ Tensor<RT, Device> apply(Tensor<T, Device> const &lhs,
                          Tensor<T, Device> const &rhs,
                          F fn)
 {
-    if (lhs.shape() != rhs.shape()) { //return Tensor<RT, Device>();
-        throw MismatchedDimensions(lhs.shape(), rhs.shape());
+    if (lhs.shape() != rhs.shape()) {
+        // if the dimensions don't match, try to broadcast
+        auto [lhs_broadcast, rhs_broadcast] = broadcast(lhs, rhs);
+        return apply<RT>(lhs_broadcast, rhs_broadcast, fn);
     }
 
     Tensor<RT, Device> result(lhs.shape());
@@ -235,7 +238,7 @@ Tensor<T, Device> vector_vector_dot(Tensor<T, Device> const &lhs,
         throw MismatchedNumberOfElements(num_elements(lhs), num_elements(rhs));
     }
 
-    T result = 0.0;
+    T result(0);
     for (index_t i = 0; i < num_elements(lhs); i++) {
         result += lhs(i)*rhs(i);
     }

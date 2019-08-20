@@ -168,6 +168,74 @@ TEST(TensorTestSuite, TestAddTensors1) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
+TEST(TensorTestSuite, TestAddTensorsWithBroadcast1) {
+    auto lhs = tensor({1, 2, 3});
+    auto rhs = tensor({1});
+    auto expected = tensor({2, 3, 4});
+
+    auto result = lhs + rhs;
+    ASSERT_TENSORS_EQ(expected, result);
+}
+
+TEST(TensorTestSuite, TestAddTensorsWithBroadcast2) {
+    auto lhs = tensor({
+        {1, 2, 3},
+        {4, 5, 6},
+        {7, 8, 9}
+    });
+
+    auto rhs = tensor({1});
+    auto expected = tensor({
+        {2, 3, 4},
+        {5, 6, 7},
+        {8, 9, 10}
+    });
+
+    auto result = lhs + rhs;
+    ASSERT_TENSORS_EQ(expected, result);
+}
+
+TEST(TensorTestSuite, TestAddTensorsWithBroadcast3) {
+    auto lhs = tensor({
+        {1, 2, 3},
+        {4, 5, 6},
+        {7, 8, 9},
+        {10, 11, 12}
+    });
+
+    auto rhs = tensor({1, 2, 3});
+    auto expected = tensor({
+        {2, 4, 6},
+        {5, 7, 9},
+        {8, 10, 12},
+        {11, 13, 15}
+    });
+
+    auto result = lhs + rhs;
+    ASSERT_TENSORS_EQ(expected, result);
+}
+
+TEST(TensorTestSuite, TestAddTensorsWithBroadcast4) {
+    auto lhs = tensor({
+        {1, 2, 3},
+        {4, 5, 6},
+        {7, 8, 9},
+        {10, 11, 12}
+    });
+
+    auto rhs = tensor({{1}, {2}, {3}, {4}});
+
+    auto expected = tensor({
+        {2, 3, 4},
+        {6, 7, 8},
+        {10, 11, 12},
+        {14, 15, 16}
+    });
+
+    auto result = lhs + rhs;
+    ASSERT_TENSORS_EQ(expected, result);
+}
+
 TEST(TensorTestSuite, TestAddInplaceTensors1) {
     auto lhs = tensor({1, 2, 3});
     auto rhs = tensor({1, 1, 1});
@@ -181,7 +249,7 @@ TEST(TensorTestSuite, TestAddInvalidTensors) {
     auto lhs = tensor({1, 2, 3});
     auto rhs = tensor({{2, 3}, {4, 5}});
 
-    EXPECT_THROW(lhs + rhs, MismatchedDimensions);
+    EXPECT_THROW(lhs + rhs, CannotBroadcast);
 }
 
 TEST(TensorTestSuite, TestSubTensors1) {

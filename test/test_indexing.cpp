@@ -12,7 +12,6 @@ TEST(IndexTestSuite, TestMakeRowMajorOrder) {
     auto order = make_row_major_order(4);
 
     indices expected = {3, 2, 1, 0};
-    // indices expected = {0, 1, 2, 3};
     auto expected_value = std::begin(expected);
     for (auto index : order) {
         ASSERT_EQ(*expected_value++, index);
@@ -23,7 +22,6 @@ TEST(IndexTestSuite, TestMakeColMajorOrder) {
     indices order = make_col_major_order(4);
 
     indices expected = {0, 1, 2, 3};
-    // indices expected = {3, 2, 1, 0};
     auto expected_value = std::begin(expected);
     for (auto index : order) {
         ASSERT_EQ(*expected_value++, index);
@@ -54,15 +52,29 @@ TEST(IndexTestSuite, TestOrderedViewColMajor) {
     }
 }
 
-TEST(IndexTestSuite, TestStridesRowMajor) {
+TEST(IndexTestSuite, TestStridesRowMajor1) {
     extent shape{2, 3, 4};
     indices order = make_row_major_order(shape.size());
     indices strides = make_strides(shape, order);
 
-    indices expected = {12, 4, 1};
-    auto expected_value = std::begin(expected);
-    for (auto stride : strides) {
-        ASSERT_EQ(*expected_value++, stride);
+    ASSERT_EQ((indices{12, 4, 1}), strides);
+}
+
+TEST(IndexTestSuite, TestStridesRowMajor2) {
+    {
+        extent shape{4, 1};
+        indices order = make_row_major_order(shape.size());
+        indices strides = make_strides(shape, order);
+
+        ASSERT_EQ((indices{1, 1}), strides);
+    }
+
+    {
+        extent shape{1, 4};
+        indices order = make_row_major_order(shape.size());
+        indices strides = make_strides(shape, order);
+
+        ASSERT_EQ((indices{4, 1}), strides);
     }
 }
 
@@ -71,11 +83,7 @@ TEST(IndexTestSuite, TestStridesColMajor) {
     indices order = make_col_major_order(shape.size());
     indices strides = make_strides(shape, order);
 
-    indices expected = {1, 2, 6};
-    auto expected_value = std::begin(expected);
-    for (auto stride : strides) {
-        ASSERT_EQ(*expected_value++, stride);
-    }
+    ASSERT_EQ((indices{1, 2, 6}), strides);
 }
 
 TEST(IndexTestSuite, TestIndexGenerator1dRowMajor) {
@@ -85,12 +93,7 @@ TEST(IndexTestSuite, TestIndexGenerator1dRowMajor) {
     index_generator indices(shape, strides);
 
     std::list<extent> expected = { {0}, {1}, {2}, {3}, {4} };
-    auto expected_value = std::begin(expected);
-
-    for (auto &index : indices) {
-        ASSERT_EQ(*expected_value++, index);
-    }
-}
+ }
 
 TEST(IndexTestSuite, TestIndexGenerator1dColMajor) {
     extent shape{5};
@@ -287,7 +290,6 @@ TEST(IndexTestSuite, TestViewCalculateOffset2dRowMajor) {
             offset_t offset = calculate_offset(view, index.read());
             auto expected_value = expected[i + view.offset[0]][j + view.offset[1]];
             ASSERT_EQ(expected_value, offset);
-            // fmt::print("{}: {} <=> {}, ({}, {})\n", index.read(), expected_value, offset, i, j);
             index.next();
         }
     }
@@ -308,7 +310,7 @@ TEST(IndexTestSuite, TestViewCalculateOffset2dColMajor) {
         {2, 5, 8, 11, 14}
     };
 
-    // show view.stride is necssary for making the indices, but layout.stride is
+    // show view.stride is necessary for making the indices, but layout.stride is
     // necessary for storage?
     auto index = index_generator(view);
     for (index_t j = 0; j < view.shape[1]; j++) {
@@ -316,7 +318,6 @@ TEST(IndexTestSuite, TestViewCalculateOffset2dColMajor) {
             offset_t offset = calculate_offset(view, index.read());
             auto expected_value = expected[i + view.offset[0]][j + view.offset[1]];
             ASSERT_EQ(expected_value, offset);
-            // fmt::print("{}: {} <=> {}, ({}, {})\n", index.read(), expected_value, offset, i, j);
             index.next();
         }
     }
