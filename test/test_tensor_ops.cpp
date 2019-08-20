@@ -451,28 +451,3 @@ TEST(TensorTestSuite, TestDotProduct3) {
     ASSERT_EQ(expected.shape(), result.shape());
     ASSERT_TENSORS_EQ(expected, result);
 }
-
-TEST(TensorTestSuite, QuickTest) {
-    auto a = tensor({{1, 2, 3}, {4, 5, 6}});
-    fmt::print("a:\n{}\n", a);
-    //[[  1,   2,   3],
-    // [  4,   5,   6]]
-
-    // slicing the tensor with a range
-    Tensor<int> b = a[{0, 2}][{1, 3}];
-    fmt::print("b: \n{}\n", b);
-    // [[  2,   3],
-    //  [  5,   6]]
-
-    // broadcasting also works
-    auto c = tensor({{1}, {2}});
-    fmt::print("c:\n{}\n", c);
-    // [[  1],
-    //  [  2]]
-
-    auto d = a+c;
-
-    fmt::print("d: \n{}\n", d);
-    // [[  2,   3,   4],
-    //  [  6,   7,   8]]
-}
