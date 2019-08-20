@@ -16,24 +16,44 @@ For example here is some simple code in Python:
 ```python
 # create a 2d tensor
 a = np.array([[1, 2, 3], [4, 5, 6])
+print("a:\n{}".format(a))
 
-# slice tensor
-b = a[:, 1:]
+# slicing the tensor with a range
+b = a[0:2, 1:3]
+print("b:\n{}".format(b))
 
-# display new tensor
-print("b = \n{}", b)
+# broadcast
+c = np.array([[1], [2]])
+print("c:\n{}".format(c))
+
+d = a + c
+print("d:\n{}".format(d))
 ```
 
 and the corresponding code for the tensor library:
 ```c++
-//  create a 2d tensor
-auto a = make_tensor({{1, 2, 3}, {4, 5, 6}});
+// create a 2d tensor
+auto a = tensor({{1, 2, 3}, {4, 5, 6}});
+fmt::print("a:\n{}\n", a);
+//[[  1,   2,   3],
+// [  4,   5,   6]]
 
-// slice tensor
-tensor b = a[{0, 1}][{1, 2}];
+// slicing the tensor with a range
+Tensor<int> b = a[{0, 2}][{1, 3}];
+fmt::print("b: \n{}\n", b);
+// [[  2,   3],
+//  [  5,   6]]
 
-// display new tensor
-fmt::print("b = \n{}\n", b);
+// broadcasting also works
+auto c = tensor({{1}, {2}});
+fmt::print("c:\n{}\n", c);
+// [[  1],
+//  [  2]]
+
+auto d = a + c;
+fmt::print("d: \n{}\n", d);
+// [[  2,   3,   4],
+//  [  6,   7,   8]]
 ```
 
 Additionally, c++ has features that python doesn't have:
