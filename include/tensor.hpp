@@ -126,12 +126,19 @@ public:
     using Device = D;
 
     /**
+     * \brief Copy constructor
+     * \param Tensor to copy
+     */
+    Tensor(Tensor const &t):
+        view_(t.view_), storage_(t.storage_), order_(t.order_) {}
+
+    /**
      * \brief Constructs a Tensor with given a shape and order
      * \param shape The extent of the Tensor in each dimension
      * \param order Either TensorOrder::RowMajor or TensorOrder::ColumnMajor
      */
     Tensor(extent shape, TensorOrder order):
-        view_({shape, make_strides(shape, make_order(shape.size(), order))}),
+        view_(shape, make_order(shape.size(), order)),
         storage_(std::make_shared<Storage<T, Device>>(view_.num_elements())),
         order_(order) {}
 
@@ -267,6 +274,15 @@ public:
     Storage<T, Device> const &storage() const { return *storage_; }
     Storage<T, Device> &storage() { return *storage_; }
     std::shared_ptr<Storage<T, Device>> storage_ptr() { return storage_; }
+
+    /**
+     * \brief Returns true if Tensor is contiguous
+     * \return
+     */
+    bool contiguous() const {
+        auto contiguous_order = make_row_major_order(num_dims());
+        return view_.order == contiguous_order;
+    }
 private:
     View view_;
     std::shared_ptr<Storage<T, Device>> storage_;
@@ -282,5 +298,30 @@ template <typename T, typename Device>
 index_t num_elements(Tensor<T, Device> const &tensor) {
     return num_elements(tensor.shape());
 }
+
+template <typename T, typename Device>
+Tensor<T, Device> make_contiguous(Tensor<T, Device> const &t) {
+    if (t.contiguous()) return t;
+    return Tensor<T, Device>(t);
+}
+
+template <typename T, typename Device>
+Tensor<T, Device> copy(Tensor<T, Device> const &tensor) {
+    auto new_storage = std::make_shared<Storage<T, Device>>(tensor.view().num_elements());
+    for (index_t i = 0; i < tensor.view().num_elements(); i++) {
+        (*new_storage)[i] = tensor.storage()[i];
+    }
+
+    return Tensor<T, Device>(new_storage, tensor.view());
+}
+
+// template <typename T, typename Device>
+// Tensor<T, Device> copy(Tensor<T, Device> const &tensor, View view) {
+//     auto new_storage = std::make_shared<Storage<T, Device>>(view.num_elements());
+//     for (index_t i = 0; i < view.num_elements(); i++) {
+//         (*new_storage)[i] = tensor.storage()[i];
+//     }
+//     return Tensor<T, Device>(new_storage, view);
+// }
 
 #endif

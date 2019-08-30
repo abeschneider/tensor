@@ -293,6 +293,7 @@ TEST(TensorTestSuite, TestTransposeWithView) {
 
 }
 
+// TODO: move to test_format.cpp
 TEST(TensorTestSuite, TestFormatTensor1d) {
     Tensor<int> t({5}, TensorOrder::RowMajor);
 

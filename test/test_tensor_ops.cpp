@@ -11,18 +11,83 @@
 #define ASSERT_TENSORS_EQ(expected, result) \
     ASSERT_TRUE(equals(expected, result))
 
-template <typename T, typename Device>
-void fill_tensor(Tensor<T, Device> &tensor) {
-    index_t i = 0;
-    for (auto &index : index_generator(tensor.shape())) {
-        tensor(index) = i++;
-    }
+TEST(TensorOpsTestSuite, TestIsContiguous) {
+    Tensor<int> t({2, 3, 4});
+    iota(t);
+
+    ASSERT_TRUE(t.contiguous());
+
+    auto t2 = transpose(t, {1, 0, 2});
+    ASSERT_FALSE(t2.contiguous());
 }
 
+TEST(TensorOpTestSuite, TestReshape1) {
+    Tensor<int> t({2, 3, 4});
+    iota(t);
 
-TEST(TensorTestSuite, TestReshape) {
+    auto t2 = reshape(t, {6, 4});
+    auto expected = tensor({
+        {  0,  1,  2,  3},
+        {  4,  5,  6,  7},
+        {  8,  9, 10, 11},
+        { 12, 13, 14, 15},
+        { 16, 17, 18, 19},
+        { 20, 21, 22, 23}
+    });
+
+    ASSERT_EQ((extent{6, 4}), t2.shape());
+    ASSERT_TENSORS_EQ(expected, t2);
+
+    // t was contiguous, so verify it is the same memory address
+    ASSERT_EQ(t.storage_ptr(), t2.storage_ptr());
+}
+
+TEST(TensorOpTestSuite, TestReshape2) {
+    Tensor<int> t({2, 3, 4});
+    iota(t);
+
+    auto t2 = transpose(t, {1, 0, 2});
+    auto t3 = reshape(t2, {6, 4});
+
+    auto expected = tensor({
+        {  0,  1,  2,  3},
+        {  4,  5,  6,  7},
+        {  8,  9, 10, 11},
+        { 12, 13, 14, 15},
+        { 16, 17, 18, 19},
+        { 20, 21, 22, 23}
+    });
+
+    ASSERT_EQ((extent{6, 4}), t3.shape());
+    ASSERT_TENSORS_EQ(expected, t3);
+
+    // t2 was non-contiguous, so verify it's a different memory address
+    ASSERT_NE(t3.storage_ptr(), t2.storage_ptr());
+}
+
+TEST(TensorOpTestSuite, TestReshape3) {
+    Tensor<int> t({2, 3, 4});
+    iota(t);
+
+    auto t2 = reshape(t, {expand, 4});
+    ASSERT_EQ((extent{6, 4}), t2.shape());
+
+    // fmt::print("got:\n{}\n", t2);
+    auto expected = tensor({
+        {  0,  1,  2,  3},
+        {  4,  5,  6,  7},
+        {  8,  9, 10, 11},
+        { 12, 13, 14, 15},
+        { 16, 17, 18, 19},
+        { 20, 21, 22, 23}
+    });
+
+    ASSERT_TENSORS_EQ(expected, t2);
+}
+
+TEST(TensorOpsTestSuite, TestReshape) {
     auto t = Tensor<int>({2, 3, 4});
-    fill_tensor(t);
+    iota(t, 0);
 
     {
         auto t2 = reshape(t, {24});
@@ -32,6 +97,7 @@ TEST(TensorTestSuite, TestReshape) {
 
         ASSERT_EQ((std::vector{24UL}), t2.shape());
         ASSERT_EQ((std::vector{1UL}), t2.view().strides);
+
         ASSERT_TENSORS_EQ(expected, t2);
     }
 
@@ -73,7 +139,10 @@ TEST(TensorTestSuite, TestReshape) {
     }
 }
 
-TEST(TensorTestSuite, TestBroadcast1) {
+TEST(TensorOpsTestSuite, TestReshapeWithInferredDimension) {
+}
+
+TEST(TensorOpsTestSuite, TestBroadcast1) {
     {
         auto t = tensor({1, 2, 3, 4});
         auto t2 = broadcast_to(t, {3, 4});
@@ -111,7 +180,7 @@ TEST(TensorTestSuite, TestBroadcast1) {
      }
 }
 
-TEST(TensorTestSuite, TestBroadcast2) {
+TEST(TensorOpsTestSuite, TestBroadcast2) {
     auto t1 = tensor({
         {1, 1, 1, 1, 1},
         {2, 2, 2, 2, 2},
@@ -135,7 +204,7 @@ TEST(TensorTestSuite, TestBroadcast2) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorTestSuite, TestBroadcast3) {
+TEST(TensorOpsTestSuite, TestBroadcast3) {
     auto t1 = tensor({
         {1, 1, 1, 1, 1},
         {2, 2, 2, 2, 2},
@@ -159,7 +228,7 @@ TEST(TensorTestSuite, TestBroadcast3) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorTestSuite, TestAddTensors1) {
+TEST(TensorOpsTestSuite, TestAddTensors1) {
     auto lhs = tensor({1, 2, 3});
     auto rhs = tensor({1, 1, 1});
     auto expected = tensor({2, 3, 4});
@@ -168,7 +237,7 @@ TEST(TensorTestSuite, TestAddTensors1) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorTestSuite, TestAddTensorsWithBroadcast1) {
+TEST(TensorOpsTestSuite, TestAddTensorsWithBroadcast1) {
     auto lhs = tensor({1, 2, 3});
     auto rhs = tensor({1});
     auto expected = tensor({2, 3, 4});
@@ -177,7 +246,7 @@ TEST(TensorTestSuite, TestAddTensorsWithBroadcast1) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorTestSuite, TestAddTensorsWithBroadcast2) {
+TEST(TensorOpsTestSuite, TestAddTensorsWithBroadcast2) {
     auto lhs = tensor({
         {1, 2, 3},
         {4, 5, 6},
@@ -195,7 +264,7 @@ TEST(TensorTestSuite, TestAddTensorsWithBroadcast2) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorTestSuite, TestAddTensorsWithBroadcast3) {
+TEST(TensorOpsTestSuite, TestAddTensorsWithBroadcast3) {
     auto lhs = tensor({
         {1, 2, 3},
         {4, 5, 6},
@@ -215,7 +284,7 @@ TEST(TensorTestSuite, TestAddTensorsWithBroadcast3) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorTestSuite, TestAddTensorsWithBroadcast4) {
+TEST(TensorOpsTestSuite, TestAddTensorsWithBroadcast4) {
     auto lhs = tensor({
         {1, 2, 3},
         {4, 5, 6},
@@ -236,7 +305,7 @@ TEST(TensorTestSuite, TestAddTensorsWithBroadcast4) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorTestSuite, TestAddInplaceTensors1) {
+TEST(TensorOpsTestSuite, TestAddInplaceTensors1) {
     auto lhs = tensor({1, 2, 3});
     auto rhs = tensor({1, 1, 1});
     auto expected = tensor({2, 3, 4});
@@ -245,14 +314,14 @@ TEST(TensorTestSuite, TestAddInplaceTensors1) {
     ASSERT_TENSORS_EQ(expected, lhs);
 }
 
-TEST(TensorTestSuite, TestAddInvalidTensors) {
+TEST(TensorOpsTestSuite, TestAddInvalidTensors) {
     auto lhs = tensor({1, 2, 3});
     auto rhs = tensor({{2, 3}, {4, 5}});
 
     EXPECT_THROW(lhs + rhs, CannotBroadcast);
 }
 
-TEST(TensorTestSuite, TestSubTensors1) {
+TEST(TensorOpsTestSuite, TestSubTensors1) {
     auto lhs = tensor({1, 2, 3});
     auto rhs = tensor({1, 1, 1});
     auto expected = tensor({0, 1, 2});
@@ -261,7 +330,7 @@ TEST(TensorTestSuite, TestSubTensors1) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorTestSuite, TestSubInplaceTensors1) {
+TEST(TensorOpsTestSuite, TestSubInplaceTensors1) {
     auto lhs = tensor({1, 2, 3});
     auto rhs = tensor({1, 1, 1});
     auto expected = tensor({0, 1, 2});
@@ -270,7 +339,7 @@ TEST(TensorTestSuite, TestSubInplaceTensors1) {
     ASSERT_TENSORS_EQ(expected, lhs);
 }
 
-TEST(TensorTestSuite, TestMulTensors1) {
+TEST(TensorOpsTestSuite, TestMulTensors1) {
     auto lhs = tensor({1, 2, 3});
     auto rhs = tensor({2, 2, 2});
     auto expected = tensor({2, 4, 6});
@@ -279,7 +348,7 @@ TEST(TensorTestSuite, TestMulTensors1) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorTestSuite, TestMulInplaceTensors1) {
+TEST(TensorOpsTestSuite, TestMulInplaceTensors1) {
     auto lhs = tensor({1, 2, 3});
     auto rhs = tensor({2, 2, 2});
     auto expected = tensor({2, 4, 6});
@@ -288,7 +357,7 @@ TEST(TensorTestSuite, TestMulInplaceTensors1) {
     ASSERT_TENSORS_EQ(expected, lhs);
 }
 
-TEST(TensorTestSuite, TestDivTensors1) {
+TEST(TensorOpsTestSuite, TestDivTensors1) {
     auto lhs = tensor({2, 4, 6});
     auto rhs = tensor({2, 2, 2});
     auto expected = tensor({1, 2, 3});
@@ -297,7 +366,7 @@ TEST(TensorTestSuite, TestDivTensors1) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorTestSuite, TestDivInplaceTensors1) {
+TEST(TensorOpsTestSuite, TestDivInplaceTensors1) {
     auto lhs = tensor({2, 4, 6});
     auto rhs = tensor({2, 2, 2});
     auto expected = tensor({1, 2, 3});
@@ -306,7 +375,7 @@ TEST(TensorTestSuite, TestDivInplaceTensors1) {
     ASSERT_TENSORS_EQ(expected, lhs);
 }
 
-TEST(TensorTestSuite, TestAddTensors2) {
+TEST(TensorOpsTestSuite, TestAddTensors2) {
     auto lhs = tensor({
         {1, 2, 3},
         {4, 5, 6},
@@ -329,7 +398,7 @@ TEST(TensorTestSuite, TestAddTensors2) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorTestSuite, TestAddInplaceTensors2) {
+TEST(TensorOpsTestSuite, TestAddInplaceTensors2) {
     auto lhs = tensor({
         {1, 2, 3},
         {4, 5, 6},
@@ -352,7 +421,7 @@ TEST(TensorTestSuite, TestAddInplaceTensors2) {
     ASSERT_TENSORS_EQ(expected, lhs);
 }
 
-TEST(TensorTestSuite, TestSubTensors2) {
+TEST(TensorOpsTestSuite, TestSubTensors2) {
     auto lhs = tensor({
         {1, 2, 3},
         {4, 5, 6},
@@ -375,7 +444,7 @@ TEST(TensorTestSuite, TestSubTensors2) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorTestSuite, TestSubInplaceTensors2) {
+TEST(TensorOpsTestSuite, TestSubInplaceTensors2) {
     auto lhs = tensor({
         {1, 2, 3},
         {4, 5, 6},
@@ -398,7 +467,7 @@ TEST(TensorTestSuite, TestSubInplaceTensors2) {
     ASSERT_TENSORS_EQ(expected, lhs);
 }
 
-TEST(TensorTestSuite, TestDotProduct1) {
+TEST(TensorOpsTestSuite, TestDotProduct1) {
     auto lhs = tensor({1, 1, 1, 1, 1});
     auto rhs = tensor({2, 2, 2, 2, 2});
 
@@ -409,7 +478,7 @@ TEST(TensorTestSuite, TestDotProduct1) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorTestSuite, TestDotProduct2) {
+TEST(TensorOpsTestSuite, TestDotProduct2) {
     auto lhs = tensor({{1, 1, 1, 1, 1},
                        {1, 1, 1, 1, 1},
                        {1, 1, 1, 1, 1}});
@@ -424,7 +493,7 @@ TEST(TensorTestSuite, TestDotProduct2) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorTestSuite, TestDotProduct3) {
+TEST(TensorOpsTestSuite, TestDotProduct3) {
     auto lhs = tensor({
         {1, 2, 3},
         {4, 5, 6},
@@ -451,3 +520,4 @@ TEST(TensorTestSuite, TestDotProduct3) {
     ASSERT_EQ(expected.shape(), result.shape());
     ASSERT_TENSORS_EQ(expected, result);
 }
+

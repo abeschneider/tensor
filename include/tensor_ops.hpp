@@ -2,7 +2,14 @@
 #define TENSOR_OPS_H
 
 #include <stdexcept>
+
+#include <boost/optional.hpp>
+
 #include <fmt/format.h>
+
+#include <types.hpp>
+
+constexpr index_t expand = std::numeric_limits<index_t>::max();
 
 struct TensorError: public std::runtime_error {
     TensorError(std::string const &msg): std::runtime_error(msg) {}
@@ -24,17 +31,13 @@ struct CannotBroadcast: public TensorError {
 };
 
 /**
- * \brief Sets all the elements of a tensor to the given value
- * \param t The tensor to operate on
- * \param value The value to use
+ * @brief Returns a tensor fill with `0`s
+ *
+ * @tparam T The tensor type
+ * @tparam Device=CPU The device tensor is stored on
+ * @param shape The shape of the tensor
+ * @return Tensor<T, Device>
  */
-template <typename T, typename Device>
-void fill(Tensor<T, Device> &t, T const &value) {
-    for (auto const &index : t.indices()) {
-        t(index) = value;
-    }
-}
-
 template <typename T, typename Device=CPU>
 Tensor<T, Device> zeros(extent const &shape) {
     Tensor<T, Device> result(shape);
@@ -42,6 +45,14 @@ Tensor<T, Device> zeros(extent const &shape) {
     return result;
 }
 
+/**
+ * @brief Returns a tensor fill with `1`s
+ *
+ * @tparam T The tensor type
+ * @tparam Device=CPU The device tensor is stored on
+ * @param shape The shape of the tensor
+ * @return Tensor<T, Device>
+ */
 template <typename T, typename Device=CPU>
 Tensor<T, Device> ones(extent const &shape) {
     Tensor<T, Device> result(shape);
@@ -49,11 +60,33 @@ Tensor<T, Device> ones(extent const &shape) {
     return result;
 }
 
+template <typename T, typename Device>
+void iota(Tensor<T, Device> &t, T start=0, T stride=1) {
+    T value = start;
+    fill(t, [&value, stride]() {
+        T tmp = value;
+        value += stride;
+        return tmp;
+    });
+}
+
+template <typename T, typename Device=CPU>
+Tensor<T, Device> range(T start, T end, T stride=1) {
+    std::size_t size = std::floor((end - start) / stride);
+    Tensor<T, Device> result({size});
+
+    iota(result, start, end, stride);
+    return result;
+}
+
 /**
- * \brief Re-orders dimensions of Tensor
- * \param tensor The Tensor to re-order
- * \param indices The new order of dimensions
- * \return The re-ordered tensor.
+ * @brief Re-orders dimensions of Tensor
+ *
+ * @tparam T The tensor type
+ * @tparam Device The device tensor is stored on
+ * @param tensor The tensor to re-order
+ * @param order The new order of dimensions
+ * @return Tensor<T, Device>
  */
 template <typename T, typename Device>
 Tensor<T, Device> transpose(
@@ -73,20 +106,62 @@ Tensor<T, Device> transpose(
     return tensor.view({shape, offset, order, strides});
 }
 
-// TODO: get rid of optional, and make invalid Tensor
+// TODO: move to source
+inline boost::optional<index_t> get_inferred_dimension(extent const &shape) {
+    boost::optional<index_t> result;
+
+    for (index_t i = 0; i < shape.size(); i++) {
+        if (shape[i] == expand) {
+            if (!result) {
+                result = i;
+            } else {
+                throw TensorError("Cannot infer more than one dimension.");
+            }
+        }
+    }
+
+    return result;
+}
+
+// TODO: move to source
+inline void calculate_reshape(extent const &from_shape, extent &to_shape) {
+    auto inferred_dimension = get_inferred_dimension(to_shape);
+
+    if (inferred_dimension) {
+        // number of elements for the new shape
+        to_shape[*inferred_dimension] = 1;
+        std::size_t new_size = num_elements(to_shape);
+
+        // number of elements for the old shape
+        std::size_t total_size = num_elements(from_shape);
+
+        // calculate the size of the inferred dimension
+        std::size_t inferred_size = total_size / new_size;
+        to_shape[*inferred_dimension] = inferred_size;
+    }
+}
+
 // TODO: make this either respect order, or take order f strides
 template <typename T, typename Device>
 Tensor<T, Device> reshape(Tensor<T, Device> const &tensor, extent const &shape) {
+    extent new_shape = shape;
+    calculate_reshape(tensor.shape(), new_shape);
+
     // we can only reshape if the number of elements is conserved
-    if (num_elements(shape) != num_elements(tensor.shape())) {
-        throw MismatchedNumberOfElements(num_elements(shape),
+    if (num_elements(new_shape) != num_elements(tensor.shape())) {
+        throw MismatchedNumberOfElements(num_elements(new_shape),
                                          num_elements(tensor.shape()));
     }
 
-    auto order = make_row_major_order(shape.size());
-    auto strides = make_strides(shape, order);
-    auto offset = make_offset(shape.size());
-    return tensor.view({shape, offset, order, strides});
+    auto order = make_row_major_order(new_shape.size());
+    auto strides = make_strides(new_shape, order);
+    auto offset = make_offset(new_shape.size());
+
+    if (tensor.contiguous()) {
+        return tensor.view({new_shape, offset, order, strides});
+    }
+
+    return copy(tensor.view({new_shape, offset, order, strides}));
 }
 
 template <typename T, typename Device>
@@ -185,6 +260,37 @@ void apply_inplace(Tensor<T, Device> &lhs, Tensor<T, Device> const &rhs, F fn) {
     }
 }
 
+/**
+ * @brief Sets all the elements of a tensor to the given value
+ *
+ * @tparam T The tensor type
+ * @tparam Device The device tensor is stored on
+ * @param t The tensor to fill
+ * @param value The value use
+ */
+template <typename T, typename Device>
+void fill(Tensor<T, Device> &t, T const &value) {
+    for (auto const &index : t.indices()) {
+        t(index) = value;
+    }
+}
+
+/**
+ * @brief Fills tensor using a successive calls to passed in function
+ *
+ * @tparam T The tensor type
+ * @tparam Device The device tensor is stored on
+ * @tparam F Function type
+ * @param t The tensor to fill
+ * @param fn The function used to fill tensor
+ */
+template <typename T, typename Device, typename F>
+void fill(Tensor<T, Device> &t, F fn) {
+    for (auto const &index : t.indices()) {
+        t(index) = fn();
+    }
+}
+
 template <typename T, typename Device>
 Tensor<T, Device> operator +(Tensor<T, Device> const &lhs, Tensor<T, Device> const &rhs) {
     return apply<T>(lhs, rhs, [](T const &lop, T const &rop) { return lop + rop; });
@@ -228,6 +334,9 @@ Tensor<T, Device> &operator /=(Tensor<T, Device> &lhs, Tensor<T, Device> const &
     apply_inplace(lhs, rhs, [](T const &lop, T const &rop) { return lop / rop; });
     return lhs;
 }
+
+// template <typename T, typename Device>
+// Tensor<T, Device> )
 
 // move to detail
 template <typename T, typename Device>
@@ -282,6 +391,27 @@ Tensor<T, Device> matrix_matrix_dot(Tensor<T, Device> const &lhs,
 }
 
 template <typename T, typename Device>
+Tensor<T, Device> batch_matrix_matrix_dot(Tensor<T, Device> const &lhs,
+                                          Tensor<T, Device> const &rhs)
+{
+    // BxMxN * BxNxP
+    Tensor<T, Device> result({lhs.shape()[0], lhs.shape()[1], rhs.shape()[2]});
+    fill(result, 0);
+
+    for (index_t b = 0; b < lhs.shape()[0]; b++) {
+        for (index_t i = 0; i < lhs.shape()[1]; i++) {
+            for (index_t j = 0; j < lhs.shape()[2]; j++) {
+                for (index_t k = 0; k < rhs.shape()[3]; k++) {
+                    result(b, i, k) += lhs(b, i, j)*rhs(b, j, k);
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
+template <typename T, typename Device>
 Tensor<T, Device> dot(Tensor<T, Device> const &lhs,
                       Tensor<T, Device> const &rhs)
 {
@@ -289,9 +419,11 @@ Tensor<T, Device> dot(Tensor<T, Device> const &lhs,
     auto rhs_dims = num_dims(rhs);
 
     if (lhs_dims > 2 || rhs_dims > 2) {
-        // currently this is unsupported
-        // return Tensor<T, Device>();
         throw TensorError("Unsupported");
+        // auto [lhs_broadcast, rhs_broadcast] = broadcast(lhs, rhs);
+        // reshape so we have just one batch dimensions, allowing us to use batch_matrix_matrix
+        // lhs_reshape = reshape({-1, lhs[dims-2], lhs[dims-1]});
+        // rhs_reshape = reshape({-1, rhs[dims-2], rhs[dims-1]});
     }
 
     if (lhs_dims == 1 && rhs_dims == 1) {
@@ -303,6 +435,8 @@ Tensor<T, Device> dot(Tensor<T, Device> const &lhs,
     }
 
     if (lhs_dims == 1) {
+        // TODO: follow pytorch convention and add a dimension
+        // to lhs and make matrix_matrix?
         return matrix_vector_dot(rhs, lhs);
     }
 

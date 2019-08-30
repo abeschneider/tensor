@@ -44,6 +44,15 @@ struct View: public Layout {
         offset(offset),
         order(order) {}
 
+    View(extent const &shape,
+         indices const &order,
+         indices const &strides):
+        View(shape, make_offset(shape.size()), order, strides) {}
+
+    View(extent const &shape,
+         extent const &order):
+        View(shape, make_offset(shape.size()), order, make_strides(shape, order)) {}
+
     View(Layout const &layout,
          extent const &shape,
          indices const &offset,
