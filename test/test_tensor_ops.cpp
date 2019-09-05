@@ -21,28 +21,69 @@ TEST(TensorOpsTestSuite, TestIsContiguous) {
     ASSERT_FALSE(t2.contiguous());
 }
 
-TEST(TensorOpTestSuite, TestReshape1) {
-    Tensor<int> t({2, 3, 4});
-    iota(t);
+TEST(TensorOpsTestSuite, TestReshape) {
+    auto t = Tensor<int>({2, 3, 4});
+    iota(t, 0);
 
-    auto t2 = reshape(t, {6, 4});
-    auto expected = tensor({
-        {  0,  1,  2,  3},
-        {  4,  5,  6,  7},
-        {  8,  9, 10, 11},
-        { 12, 13, 14, 15},
-        { 16, 17, 18, 19},
-        { 20, 21, 22, 23}
-    });
+    {
+        auto t2 = reshape(t, {24});
 
-    ASSERT_EQ((extent{6, 4}), t2.shape());
-    ASSERT_TENSORS_EQ(expected, t2);
+        auto expected = tensor({ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11,
+                                12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23});
 
-    // t was contiguous, so verify it is the same memory address
-    ASSERT_EQ(t.storage_ptr(), t2.storage_ptr());
+        ASSERT_EQ((std::vector{24UL}), t2.shape());
+        ASSERT_EQ((std::vector{1UL}), t2.view().strides);
+        ASSERT_TENSORS_EQ(expected, t2);
+
+        // contiguous, so should have same memory address
+        ASSERT_EQ(t.storage_ptr(), t2.storage_ptr());
+    }
+
+    {
+        auto t2 = reshape(t, {6, 4});
+
+        auto expected = tensor({
+            {  0,   1,   2,   3},
+            {  4,   5,   6,   7},
+            {  8,   9,  10,  11},
+            { 12,  13,  14,  15},
+            { 16,  17,  18,  19},
+            { 20,  21,  22,  23}
+        });
+
+        ASSERT_EQ((std::vector{6UL, 4UL}), t2.shape());
+        ASSERT_EQ((std::vector{4UL, 1UL}), t2.view().strides);
+        ASSERT_TENSORS_EQ(expected, t2);
+
+        // contiguous, so should have same memory address
+        ASSERT_EQ(t.storage_ptr(), t2.storage_ptr());
+    }
+
+    {
+        auto t2 = reshape(t, {4, 6});
+
+        auto expected = tensor({
+            {  0,   1,   2,   3,   4,   5},
+            {  6,   7,   8,   9,  10,  11},
+            { 12,  13,  14,  15,  16,  17},
+            { 18,  19,  20,  21,  22,  23}
+        });
+
+
+        ASSERT_EQ((std::vector{4UL, 6UL}), t2.shape());
+        ASSERT_EQ((std::vector{6UL, 1UL}), t2.view().strides);
+        ASSERT_TENSORS_EQ(expected, t2);
+
+        // contiguous, so should have same memory address
+        ASSERT_EQ(t.storage_ptr(), t2.storage_ptr());
+    }
+
+    {
+        EXPECT_THROW(reshape(t, {2, 3}), MismatchedNumberOfElements);
+    }
 }
 
-TEST(TensorOpTestSuite, TestReshape2) {
+TEST(TensorOpTestSuite, TestReshapeWithNonContiguousTensor) {
     Tensor<int> t({2, 3, 4});
     iota(t);
 
@@ -65,14 +106,13 @@ TEST(TensorOpTestSuite, TestReshape2) {
     ASSERT_NE(t3.storage_ptr(), t2.storage_ptr());
 }
 
-TEST(TensorOpTestSuite, TestReshape3) {
+TEST(TensorOpTestSuite, TestReshapeWithInferredDimension) {
     Tensor<int> t({2, 3, 4});
     iota(t);
 
     auto t2 = reshape(t, {expand, 4});
     ASSERT_EQ((extent{6, 4}), t2.shape());
 
-    // fmt::print("got:\n{}\n", t2);
     auto expected = tensor({
         {  0,  1,  2,  3},
         {  4,  5,  6,  7},
@@ -83,63 +123,6 @@ TEST(TensorOpTestSuite, TestReshape3) {
     });
 
     ASSERT_TENSORS_EQ(expected, t2);
-}
-
-TEST(TensorOpsTestSuite, TestReshape) {
-    auto t = Tensor<int>({2, 3, 4});
-    iota(t, 0);
-
-    {
-        auto t2 = reshape(t, {24});
-
-        auto expected = tensor({ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11,
-                                12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23});
-
-        ASSERT_EQ((std::vector{24UL}), t2.shape());
-        ASSERT_EQ((std::vector{1UL}), t2.view().strides);
-
-        ASSERT_TENSORS_EQ(expected, t2);
-    }
-
-    {
-        auto t2 = reshape(t, {6, 4});
-
-        auto expected = tensor({
-            {  0,   1,   2,   3},
-            {  4,   5,   6,   7},
-            {  8,   9,  10,  11},
-            { 12,  13,  14,  15},
-            { 16,  17,  18,  19},
-            { 20,  21,  22,  23}
-        });
-
-        ASSERT_EQ((std::vector{6UL, 4UL}), t2.shape());
-        ASSERT_EQ((std::vector{4UL, 1UL}), t2.view().strides);
-        ASSERT_TENSORS_EQ(expected, t2);
-    }
-
-    {
-        auto t2 = reshape(t, {4, 6});
-
-        auto expected = tensor({
-            {  0,   1,   2,   3,   4,   5},
-            {  6,   7,   8,   9,  10,  11},
-            { 12,  13,  14,  15,  16,  17},
-            { 18,  19,  20,  21,  22,  23}
-        });
-
-
-        ASSERT_EQ((std::vector{4UL, 6UL}), t2.shape());
-        ASSERT_EQ((std::vector{6UL, 1UL}), t2.view().strides);
-        ASSERT_TENSORS_EQ(expected, t2);
-    }
-
-    {
-        EXPECT_THROW(reshape(t, {2, 3}), MismatchedNumberOfElements);
-    }
-}
-
-TEST(TensorOpsTestSuite, TestReshapeWithInferredDimension) {
 }
 
 TEST(TensorOpsTestSuite, TestBroadcast1) {
@@ -344,7 +327,7 @@ TEST(TensorOpsTestSuite, TestMulTensors1) {
     auto rhs = tensor({2, 2, 2});
     auto expected = tensor({2, 4, 6});
 
-    auto result = lhs * rhs;
+    auto result = lhs.el() * rhs.el();
     ASSERT_TENSORS_EQ(expected, result);
 }
 
@@ -353,7 +336,7 @@ TEST(TensorOpsTestSuite, TestMulInplaceTensors1) {
     auto rhs = tensor({2, 2, 2});
     auto expected = tensor({2, 4, 6});
 
-    lhs *= rhs;
+    lhs.el() *= rhs.el();
     ASSERT_TENSORS_EQ(expected, lhs);
 }
 
@@ -467,18 +450,18 @@ TEST(TensorOpsTestSuite, TestSubInplaceTensors2) {
     ASSERT_TENSORS_EQ(expected, lhs);
 }
 
-TEST(TensorOpsTestSuite, TestDotProduct1) {
+TEST(TensorOpsTestSuite, TestDotProductVectorVector) {
     auto lhs = tensor({1, 1, 1, 1, 1});
     auto rhs = tensor({2, 2, 2, 2, 2});
 
     auto expected = tensor({10});
-    auto result = dot(lhs, rhs);
+    auto result = lhs*rhs;
 
     ASSERT_EQ(expected.shape(), result.shape());
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorOpsTestSuite, TestDotProduct2) {
+TEST(TensorOpsTestSuite, TestDotProductMatrixVector) {
     auto lhs = tensor({{1, 1, 1, 1, 1},
                        {1, 1, 1, 1, 1},
                        {1, 1, 1, 1, 1}});
@@ -486,14 +469,14 @@ TEST(TensorOpsTestSuite, TestDotProduct2) {
     auto rhs = tensor({2, 2, 2, 2, 2});
 
     auto expected = tensor({10, 10, 10});
-    auto result = dot(lhs, rhs);
+    auto result = lhs*rhs;
 
     // 3x5 * 5 => 3
     ASSERT_EQ(expected.shape(), result.shape());
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorOpsTestSuite, TestDotProduct3) {
+TEST(TensorOpsTestSuite, TestDotProductMatrixMatrix) {
     auto lhs = tensor({
         {1, 2, 3},
         {4, 5, 6},
@@ -514,10 +497,75 @@ TEST(TensorOpsTestSuite, TestDotProduct3) {
         {66, 66, 66, 66}
     });
 
-    auto result = dot(lhs, rhs);
+    auto result = lhs*rhs;
 
     // 4x3 * 3x4 => 4x4
     ASSERT_EQ(expected.shape(), result.shape());
     ASSERT_TENSORS_EQ(expected, result);
 }
 
+TEST(TensorOpsTestSuite, TestDotProductBatchMatrixMatrix) {
+    Tensor<int> lhs({2, 3, 4});
+    Tensor<int> rhs({2, 4, 6});
+
+    iota(lhs);
+    iota(rhs);
+
+    auto expected = tensor({
+        {{84,  90,  96, 102, 108, 114},
+         {228, 250, 272, 294, 316, 338},
+         {372, 410, 448, 486, 524, 562}},
+
+        {{1812, 1866, 1920, 1974, 2028, 2082},
+         {2340, 2410, 2480, 2550, 2620, 2690},
+         {2868, 2954, 3040, 3126, 3212, 3298}}
+    });
+
+    auto result = dot(lhs, rhs);
+
+    // 2x3x4 * 2x4x6 = 2x2x6 (2, 3, 6)
+    ASSERT_EQ((extent{2, 3, 6}), result.shape());
+    ASSERT_TENSORS_EQ(expected, result);
+}
+
+TEST(TensorOpsTestSuite, TestDotProductBatchMatrixMatrix2) {
+    Tensor<int> lhs({1, 2, 3, 4});
+    Tensor<int> rhs({1, 2, 4, 6});
+
+    iota(lhs);
+    iota(rhs);
+
+    auto expected = tensor({
+        {{{84,  90,  96, 102, 108, 114},
+          {228, 250, 272, 294, 316, 338},
+          {372, 410, 448, 486, 524, 562}},
+
+         {{1812, 1866, 1920, 1974, 2028, 2082},
+          {2340, 2410, 2480, 2550, 2620, 2690},
+          {2868, 2954, 3040, 3126, 3212, 3298}}}
+    });
+
+    auto result = dot(lhs, rhs);
+
+    ASSERT_EQ((extent{1, 2, 3, 6}), result.shape());
+    ASSERT_TENSORS_EQ(expected, result);
+}
+
+TEST(TensorOpsTestSuite, TestSin) {
+    auto t = tensor({
+        {0.0f, 3.145f/2, 3.145f, 2*3.145f},
+        {0.0f, 3.145f/2, 3.145f, 2*3.145f},
+        {0.0f, 3.145f/2, 3.145f, 2*3.145f},
+        {0.0f, 3.145f/2, 3.145f, 2*3.145f}
+    });
+
+    auto expected = tensor({
+        {std::sin(0.0f), std::sin(3.145f/2), std::sin(3.145f), std::sin(2*3.145f)},
+        {std::sin(0.0f), std::sin(3.145f/2), std::sin(3.145f), std::sin(2*3.145f)},
+        {std::sin(0.0f), std::sin(3.145f/2), std::sin(3.145f), std::sin(2*3.145f)},
+        {std::sin(0.0f), std::sin(3.145f/2), std::sin(3.145f), std::sin(2*3.145f)}
+    });
+
+    auto t2 = sin(t);
+    ASSERT_TENSORS_EQ(expected, t2);
+}

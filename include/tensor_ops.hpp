@@ -7,6 +7,7 @@
 
 #include <fmt/format.h>
 
+#include <tensor.hpp>
 #include <types.hpp>
 
 constexpr index_t expand = std::numeric_limits<index_t>::max();
@@ -28,6 +29,11 @@ struct MismatchedDimensions: public TensorError {
 struct CannotBroadcast: public TensorError {
     CannotBroadcast(extent const &shape1, extent const &shape2):
         TensorError(fmt::format("Cannot broadcast: {} and {}", shape1, shape2)) {}
+};
+
+struct NotEnoughDimensions: public TensorError {
+    NotEnoughDimensions(extent const &shape):
+        TensorError(fmt::format("Not enough dimensions: {}", shape)) {}
 };
 
 /**
@@ -249,7 +255,7 @@ Tensor<RT, Device> apply(Tensor<T, Device> const &lhs,
 }
 
 template <typename T, typename Device, typename F>
-void apply_inplace(Tensor<T, Device> &lhs, Tensor<T, Device> const &rhs, F fn) {
+void iapply(Tensor<T, Device> &lhs, Tensor<T, Device> const &rhs, F fn) {
     if (lhs.shape() != rhs.shape()) {
         throw MismatchedDimensions(lhs.shape(), rhs.shape());
     }
@@ -257,6 +263,23 @@ void apply_inplace(Tensor<T, Device> &lhs, Tensor<T, Device> const &rhs, F fn) {
     // can optimize if both lhs and rhs are contiguous
     for (auto const &index : lhs.indices()) {
         lhs(index) = fn(lhs(index), rhs(index));
+    }
+}
+
+template <typename RT, typename T, typename Device, typename F>
+Tensor<RT, Device> apply(Tensor<T, Device> const &t, F fn) {
+    Tensor<RT, Device> result(t.shape());
+    for (auto const &index : t.indices()) {
+        result(index) = fn(t(index));
+    }
+
+    return result;
+}
+
+template <typename T, typename Device, typename F>
+void iapply(Tensor<T, Device> &t, F fn) {
+    for (auto const &index : t.indices()) {
+        t(index) = fn(t(index));
     }
 }
 
@@ -270,9 +293,7 @@ void apply_inplace(Tensor<T, Device> &lhs, Tensor<T, Device> const &rhs, F fn) {
  */
 template <typename T, typename Device>
 void fill(Tensor<T, Device> &t, T const &value) {
-    for (auto const &index : t.indices()) {
-        t(index) = value;
-    }
+    iapply(t, [value](T const &) { return value; });
 }
 
 /**
@@ -286,9 +307,7 @@ void fill(Tensor<T, Device> &t, T const &value) {
  */
 template <typename T, typename Device, typename F>
 void fill(Tensor<T, Device> &t, F fn) {
-    for (auto const &index : t.indices()) {
-        t(index) = fn();
-    }
+    iapply(t, [fn](T const &) { return fn(); });
 }
 
 template <typename T, typename Device>
@@ -298,7 +317,7 @@ Tensor<T, Device> operator +(Tensor<T, Device> const &lhs, Tensor<T, Device> con
 
 template <typename T, typename Device>
 Tensor<T, Device> &operator +=(Tensor<T, Device> &lhs, Tensor<T, Device> const &rhs) {
-    apply_inplace(lhs, rhs, [](T const &lop, T const &rop) { return lop + rop; });
+    iapply(lhs, rhs, [](T const &lop, T const &rop) { return lop + rop; });
     return lhs;
 }
 
@@ -309,19 +328,21 @@ Tensor<T, Device> operator -(Tensor<T, Device> const &lhs, Tensor<T, Device> con
 
 template <typename T, typename Device>
 Tensor<T, Device> &operator -=(Tensor<T, Device> &lhs, Tensor<T, Device> const &rhs) {
-    apply_inplace(lhs, rhs, [](T const &lop, T const &rop) { return lop - rop; });
+    iapply(lhs, rhs, [](T const &lop, T const &rop) { return lop - rop; });
     return lhs;
 }
 
 template <typename T, typename Device>
-Tensor<T, Device> operator *(Tensor<T, Device> const &lhs, Tensor<T, Device> const &rhs) {
-    return apply<T>(lhs, rhs, [](T const &lop, T const &rop) { return lop * rop; });
+Tensor<T, Device> operator *(ElementTensor<T, Device> lhs, ElementTensor<T, Device> rhs) {
+    return apply<T>(lhs.tensor, rhs.tensor, [](T const &lop, T const &rop) {
+        return lop * rop;
+    });
 }
 
 template <typename T, typename Device>
-Tensor<T, Device> &operator *=(Tensor<T, Device> &lhs, Tensor<T, Device> const &rhs) {
-    apply_inplace(lhs, rhs, [](T const &lop, T const &rop) { return lop * rop; });
-    return lhs;
+Tensor<T, Device> &operator *=(ElementTensor<T, Device> lhs, ElementTensor<T, Device> rhs) {
+    iapply(lhs.tensor, rhs.tensor, [](T const &lop, T const &rop) { return lop * rop; });
+    return lhs.tensor;
 }
 
 template <typename T, typename Device>
@@ -331,12 +352,19 @@ Tensor<T, Device> operator /(Tensor<T, Device> const &lhs, Tensor<T, Device> con
 
 template <typename T, typename Device>
 Tensor<T, Device> &operator /=(Tensor<T, Device> &lhs, Tensor<T, Device> const &rhs) {
-    apply_inplace(lhs, rhs, [](T const &lop, T const &rop) { return lop / rop; });
+    iapply(lhs, rhs, [](T const &lop, T const &rop) { return lop / rop; });
     return lhs;
 }
 
-// template <typename T, typename Device>
-// Tensor<T, Device> )
+template <typename T, typename Device>
+Tensor<T, Device> sin(Tensor<T, Device> &t) {
+    return apply<T>(t, [](T const &v) { return std::sin(v); });
+}
+
+template <typename T, typename Device>
+void isin(Tensor<T, Device> &t) {
+    iapply(t, [](T const &v) { return std::sin(v); });
+}
 
 // move to detail
 template <typename T, typename Device>
@@ -372,6 +400,8 @@ Tensor<T, Device> matrix_vector_dot(Tensor<T, Device> const &lhs,
     return result;
 }
 
+// need batch_matrix_vector
+
 template <typename T, typename Device>
 Tensor<T, Device> matrix_matrix_dot(Tensor<T, Device> const &lhs,
                                     Tensor<T, Device> const &rhs)
@@ -401,7 +431,7 @@ Tensor<T, Device> batch_matrix_matrix_dot(Tensor<T, Device> const &lhs,
     for (index_t b = 0; b < lhs.shape()[0]; b++) {
         for (index_t i = 0; i < lhs.shape()[1]; i++) {
             for (index_t j = 0; j < lhs.shape()[2]; j++) {
-                for (index_t k = 0; k < rhs.shape()[3]; k++) {
+                for (index_t k = 0; k < rhs.shape()[2]; k++) {
                     result(b, i, k) += lhs(b, i, j)*rhs(b, j, k);
                 }
             }
@@ -411,6 +441,23 @@ Tensor<T, Device> batch_matrix_matrix_dot(Tensor<T, Device> const &lhs,
     return result;
 }
 
+
+inline extent get_batch_shape(extent const &shape) {
+    if (shape.size() < 3) throw NotEnoughDimensions(shape);
+    std::size_t count = shape.size() - 2;
+
+    extent batch_shape(count);
+    std::copy_n(std::begin(shape), count, std::begin(batch_shape));
+    return batch_shape;
+}
+
+inline extent calculate_batch_shape(extent const &shape, index_t d0, index_t d1) {
+    auto new_shape = get_batch_shape(shape);
+    new_shape.push_back(d0);
+    new_shape.push_back(d1);
+    return new_shape;
+}
+
 template <typename T, typename Device>
 Tensor<T, Device> dot(Tensor<T, Device> const &lhs,
                       Tensor<T, Device> const &rhs)
@@ -418,12 +465,35 @@ Tensor<T, Device> dot(Tensor<T, Device> const &lhs,
     auto lhs_dims = num_dims(lhs);
     auto rhs_dims = num_dims(rhs);
 
+    // 5x3x6 * 5x
     if (lhs_dims > 2 || rhs_dims > 2) {
-        throw TensorError("Unsupported");
-        // auto [lhs_broadcast, rhs_broadcast] = broadcast(lhs, rhs);
-        // reshape so we have just one batch dimensions, allowing us to use batch_matrix_matrix
-        // lhs_reshape = reshape({-1, lhs[dims-2], lhs[dims-1]});
-        // rhs_reshape = reshape({-1, rhs[dims-2], rhs[dims-1]});
+        auto lhs_copy = lhs;
+        auto rhs_copy = rhs;
+
+        // flatten batch dimension if either tensor is > 3 dims
+        if (lhs_dims > 3) {
+            lhs_copy = reshape(lhs_copy, {expand, lhs.shape()[lhs_dims-2], lhs.shape()[lhs_dims-1]});
+        }
+
+        if (rhs_dims > 3) {
+            rhs_copy = reshape(rhs_copy, {expand, rhs.shape()[rhs_dims-2], rhs.shape()[rhs_dims-1]});
+        }
+
+        // if (lhs_dims == 2) {
+        //     // add batch dimension
+        // } else if (lhs_dims == 1) {
+        //     // treat as batch matrix-vector multiplication
+        // }
+
+        // 2. either lhs or rhs > 3, in which case need to flatten
+        auto result = batch_matrix_matrix_dot(lhs_copy, rhs_copy);
+
+        // for now, assume both lhs and rhs start off as the same shape
+        // auto new_shape = get_batch_size(orig_lhs_shape);
+        auto new_shape = calculate_batch_shape(lhs.shape(), result.shape()[1], result.shape()[2]);
+
+        // reshape into original batch dims
+        return reshape(result, new_shape);
     }
 
     if (lhs_dims == 1 && rhs_dims == 1) {
@@ -443,6 +513,12 @@ Tensor<T, Device> dot(Tensor<T, Device> const &lhs,
     // matrix output
     return matrix_matrix_dot(lhs, rhs);
 }
+
+template <typename T, typename Device>
+Tensor<T, Device> operator *(Tensor<T, Device> const &lhs, Tensor<T, Device> const &rhs) {
+    return dot(lhs, rhs);
+}
+
 
 template <typename T, typename Device>
 Tensor<std::uint8_t, Device> operator ==(Tensor<T, Device> const &lhs,

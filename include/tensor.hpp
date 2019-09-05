@@ -113,6 +113,41 @@ Tensor<T, Device> tensor(std::initializer_list<std::initializer_list<std::initia
     return result;
 }
 
+template <typename T, typename Device=CPU>
+Tensor<T, Device> tensor(std::initializer_list<std::initializer_list<std::initializer_list<std::initializer_list<T>>>> values) {
+    std::size_t d0 = values.size();
+    auto l1 = *std::begin(values);
+    std::size_t d1 = l1.size();
+    auto l2 = *std::begin(l1);
+    std::size_t d2 = l2.size();
+    auto l3 = *std::begin(l2);
+    std::size_t d3 = l3.size();
+
+    Tensor<T, Device> result({d0, d1, d2, d3});
+    std::size_t b = 0;
+    for (auto batch : values) {
+        std::size_t i = 0;
+        for (auto row : batch) {
+            std::size_t j = 0;
+            for (auto col : row) {
+                std::size_t k = 0;
+                for (auto value : col) {
+                    result(b, i, j, k) = value;
+                    ++k;
+                }
+                ++j;
+            }
+            ++i;
+        }
+        ++b;
+    }
+
+    return result;
+}
+
+template <typename T, typename Device>
+struct ElementTensor;
+
 /**
  * \class Tensor tensor.hpp include/tensor.hpp
  * \brief The Tensor class holds a pointer to data held in storage and a view of that data.
@@ -283,10 +318,30 @@ public:
         auto contiguous_order = make_row_major_order(num_dims());
         return view_.order == contiguous_order;
     }
+
+    ElementTensor<T, Device> el() {
+        return ElementTensor<T, Device>{*this};
+    }
 private:
     View view_;
     std::shared_ptr<Storage<T, Device>> storage_;
+
+    // row-major or column major
     TensorOrder order_;
+
+    // if true, tensor elements can be changed
+    bool mutable_;
+};
+
+/**
+ * @brief Provides a wrapper around Tensor that causes elementwise operations to
+ *        be used. Do not use this struct directly, but instead use `Tensor.el()`
+ * @tparam T
+ * @tparam Device
+ */
+template <typename T, typename Device>
+struct ElementTensor {
+    Tensor<T, Device> &tensor;
 };
 
 template <typename T, typename Device>
