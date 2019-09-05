@@ -450,7 +450,7 @@ TEST(TensorOpsTestSuite, TestSubInplaceTensors2) {
     ASSERT_TENSORS_EQ(expected, lhs);
 }
 
-TEST(TensorOpsTestSuite, TestDotProductVectorVector) {
+TEST(TensorOpsTestSuite, TestProductVectorVector) {
     auto lhs = tensor({1, 1, 1, 1, 1});
     auto rhs = tensor({2, 2, 2, 2, 2});
 
@@ -461,7 +461,7 @@ TEST(TensorOpsTestSuite, TestDotProductVectorVector) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorOpsTestSuite, TestDotProductMatrixVector) {
+TEST(TensorOpsTestSuite, TestProductMatrixVector) {
     auto lhs = tensor({{1, 1, 1, 1, 1},
                        {1, 1, 1, 1, 1},
                        {1, 1, 1, 1, 1}});
@@ -476,7 +476,7 @@ TEST(TensorOpsTestSuite, TestDotProductMatrixVector) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorOpsTestSuite, TestDotProductMatrixMatrix) {
+TEST(TensorOpsTestSuite, TestProductMatrixMatrix) {
     auto lhs = tensor({
         {1, 2, 3},
         {4, 5, 6},
@@ -504,7 +504,7 @@ TEST(TensorOpsTestSuite, TestDotProductMatrixMatrix) {
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorOpsTestSuite, TestDotProductBatchMatrixMatrix) {
+TEST(TensorOpsTestSuite, TestProductBatchMatrixMatrix) {
     Tensor<int> lhs({2, 3, 4});
     Tensor<int> rhs({2, 4, 6});
 
@@ -521,14 +521,14 @@ TEST(TensorOpsTestSuite, TestDotProductBatchMatrixMatrix) {
          {2868, 2954, 3040, 3126, 3212, 3298}}
     });
 
-    auto result = dot(lhs, rhs);
+    auto result = lhs*rhs;
 
     // 2x3x4 * 2x4x6 = 2x2x6 (2, 3, 6)
     ASSERT_EQ((extent{2, 3, 6}), result.shape());
     ASSERT_TENSORS_EQ(expected, result);
 }
 
-TEST(TensorOpsTestSuite, TestDotProductBatchMatrixMatrix2) {
+TEST(TensorOpsTestSuite, TestProductBatchMatrixMatrix2) {
     Tensor<int> lhs({1, 2, 3, 4});
     Tensor<int> rhs({1, 2, 4, 6});
 
@@ -545,7 +545,7 @@ TEST(TensorOpsTestSuite, TestDotProductBatchMatrixMatrix2) {
           {2868, 2954, 3040, 3126, 3212, 3298}}}
     });
 
-    auto result = dot(lhs, rhs);
+    auto result = lhs*rhs;
 
     ASSERT_EQ((extent{1, 2, 3, 6}), result.shape());
     ASSERT_TENSORS_EQ(expected, result);

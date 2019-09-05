@@ -368,8 +368,8 @@ void isin(Tensor<T, Device> &t) {
 
 // move to detail
 template <typename T, typename Device>
-Tensor<T, Device> vector_vector_dot(Tensor<T, Device> const &lhs,
-                                    Tensor<T, Device> const &rhs)
+Tensor<T, Device> vector_vector_product(Tensor<T, Device> const &lhs,
+                                        Tensor<T, Device> const &rhs)
 {
     if (num_elements(lhs) != num_elements(rhs)) {
         throw MismatchedNumberOfElements(num_elements(lhs), num_elements(rhs));
@@ -384,8 +384,8 @@ Tensor<T, Device> vector_vector_dot(Tensor<T, Device> const &lhs,
 }
 
 template <typename T, typename Device>
-Tensor<T, Device> matrix_vector_dot(Tensor<T, Device> const &lhs,
-                                    Tensor<T, Device> const &rhs)
+Tensor<T, Device> matrix_vector_product(Tensor<T, Device> const &lhs,
+                                        Tensor<T, Device> const &rhs)
 {
     // verify inner dimensions match: (Nx1, 1)
     Tensor<T, Device> result({lhs.shape()[0]});
@@ -403,8 +403,8 @@ Tensor<T, Device> matrix_vector_dot(Tensor<T, Device> const &lhs,
 // need batch_matrix_vector
 
 template <typename T, typename Device>
-Tensor<T, Device> matrix_matrix_dot(Tensor<T, Device> const &lhs,
-                                    Tensor<T, Device> const &rhs)
+Tensor<T, Device> matrix_matrix_product(Tensor<T, Device> const &lhs,
+                                        Tensor<T, Device> const &rhs)
 {
     Tensor<T, Device> result({lhs.shape()[0], rhs.shape()[1]});
     fill(result, 0);
@@ -421,8 +421,8 @@ Tensor<T, Device> matrix_matrix_dot(Tensor<T, Device> const &lhs,
 }
 
 template <typename T, typename Device>
-Tensor<T, Device> batch_matrix_matrix_dot(Tensor<T, Device> const &lhs,
-                                          Tensor<T, Device> const &rhs)
+Tensor<T, Device> batch_matrix_matrix_product(Tensor<T, Device> const &lhs,
+                                              Tensor<T, Device> const &rhs)
 {
     // BxMxN * BxNxP
     Tensor<T, Device> result({lhs.shape()[0], lhs.shape()[1], rhs.shape()[2]});
@@ -459,8 +459,8 @@ inline extent calculate_batch_shape(extent const &shape, index_t d0, index_t d1)
 }
 
 template <typename T, typename Device>
-Tensor<T, Device> dot(Tensor<T, Device> const &lhs,
-                      Tensor<T, Device> const &rhs)
+Tensor<T, Device> product(Tensor<T, Device> const &lhs,
+                          Tensor<T, Device> const &rhs)
 {
     auto lhs_dims = num_dims(lhs);
     auto rhs_dims = num_dims(rhs);
@@ -486,7 +486,7 @@ Tensor<T, Device> dot(Tensor<T, Device> const &lhs,
         // }
 
         // 2. either lhs or rhs > 3, in which case need to flatten
-        auto result = batch_matrix_matrix_dot(lhs_copy, rhs_copy);
+        auto result = batch_matrix_matrix_product(lhs_copy, rhs_copy);
 
         // for now, assume both lhs and rhs start off as the same shape
         // auto new_shape = get_batch_size(orig_lhs_shape);
@@ -497,26 +497,26 @@ Tensor<T, Device> dot(Tensor<T, Device> const &lhs,
     }
 
     if (lhs_dims == 1 && rhs_dims == 1) {
-        return vector_vector_dot(lhs, rhs);
+        return vector_vector_product(lhs, rhs);
     }
 
     if (rhs_dims == 1) {
-        return matrix_vector_dot(lhs, rhs);
+        return matrix_vector_product(lhs, rhs);
     }
 
     if (lhs_dims == 1) {
         // TODO: follow pytorch convention and add a dimension
         // to lhs and make matrix_matrix?
-        return matrix_vector_dot(rhs, lhs);
+        return matrix_vector_product(rhs, lhs);
     }
 
     // matrix output
-    return matrix_matrix_dot(lhs, rhs);
+    return matrix_matrix_product(lhs, rhs);
 }
 
 template <typename T, typename Device>
 Tensor<T, Device> operator *(Tensor<T, Device> const &lhs, Tensor<T, Device> const &rhs) {
-    return dot(lhs, rhs);
+    return product(lhs, rhs);
 }
 
 
